@@ -1,9 +1,9 @@
-from .textnode import TextNode, TextType
+import sys
+from pathlib import Path
 
-def main():
-    text_node : TextNode = TextNode("Hello, World!", text_type=TextType.BOLD)
-    print(text_node)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from main import run
 
 if __name__ == "__main__":
-    main()
+    run()

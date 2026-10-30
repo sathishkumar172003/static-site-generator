@@ -43,32 +43,18 @@ def block_to_block_type(single_line_of_md: str):
     else:
         return BlockType.PARAGRAPH
 
-def local_url_for_page(url: str, basepath: str) -> str:
-    if not url.startswith("/") or url.startswith("//"):
-        return url
-
-    path = url.lstrip("/")
-    if not path:
-        path = "index.html"
-    elif not os.path.splitext(path)[1]:
-        path = os.path.join(path.rstrip("/"), "index.html")
-    return basepath + path.replace(os.sep, "/")
-
-
-def text_to_children(text, basepath=""):
+def text_to_children(text):
     # text_to_textnodes
     # text_node_to_html_node
 
     textnodes = text_to_textnodes(text)
     children = []
     for textnode in textnodes:
-        if textnode.url:
-            textnode.url = local_url_for_page(textnode.url, basepath)
         leafnode = text_node_to_html_node(textnode)
         children.append(leafnode)
     return children
 
-def markdown_to_htmlnode(md: str, basepath=""):
+def markdown_to_htmlnode(md: str):
     blocks = markdown_to_blocks(md)
     block_nodes = []
     for block in blocks:
@@ -98,15 +84,15 @@ def markdown_to_htmlnode(md: str, basepath=""):
         elif block_type in (BlockType.UNORDERED_LIST, BlockType.ORDERED_LIST):
             marker = r"^- " if block_type == BlockType.UNORDERED_LIST else r"^\d+\. "
             block_node.children = [
-                HTMLNode("li", "", text_to_children(re.sub(marker, "", line), basepath), {})
+                HTMLNode("li", "", text_to_children(re.sub(marker, "", line)), {})
                 for line in block.split("\n")
             ]
         elif block_type == BlockType.QUOTE:
             quote_lines = (line[1:].strip() for line in block.split("\n"))
             content = " ".join(line for line in quote_lines if line)
-            block_node.children = text_to_children(content, basepath)
+            block_node.children = text_to_children(content)
         else:
-            block_node.children = text_to_children(content, basepath)
+            block_node.children = text_to_children(content)
         block_nodes.append(block_node)
         
 
@@ -125,7 +111,7 @@ def extract_title(markdown: str) -> str:
     except Exception as e:
         raise Exception("No title found in markdown")
 
-def generate_page(from_path: str, template_path, dest_path, basepath=""): 
+def generate_page(from_path: str, template_path, dest_path, basepath="/"):
     print('Generating page from {} to {}'.format(from_path, dest_path))
     if not os.path.exists(from_path):
         raise Exception("Source file does not exist: {}".format(from_path))
@@ -137,12 +123,13 @@ def generate_page(from_path: str, template_path, dest_path, basepath=""):
     with open(template_path, 'r') as f:
         print('Reading template from {}'.format(template_path))
         template = f.read()
-    html_node = markdown_to_htmlnode(markdown, basepath)
+    html_node = markdown_to_htmlnode(markdown)
     html = html_node.to_html()
     title = extract_title(markdown)
     html = template.replace("{{ Content }}", html)
     html = html.replace("{{ Title }}", title)
-    html = html.replace("{{ Basepath }}", basepath)
+    html = html.replace('href="/', f'href="{basepath}')
+    html = html.replace('src="/', f'src="{basepath}')
     if not os.path.exists(os.path.dirname(dest_path)):
         os.makedirs(os.path.dirname(dest_path))
     with open(dest_path, 'w') as f:
@@ -151,7 +138,7 @@ def generate_page(from_path: str, template_path, dest_path, basepath=""):
     
 
     
-def generate_pages_recursive(dir_path_content, template_path, dest_dir_path):
+def generate_pages_recursive(dir_path_content, template_path, dest_dir_path, basepath="/"):
     # crawl every entry in content dir
     # For each markdown file found, generate new .html file using the same template.html file
     # the generated pages should be written to the public directory in the same directory structure
@@ -161,11 +148,5 @@ def generate_pages_recursive(dir_path_content, template_path, dest_dir_path):
                 from_path = os.path.join(root, file)
                 relative_path = os.path.relpath(from_path, dir_path_content)
                 dest_path = os.path.join(dest_dir_path, relative_path[:-3] + ".html")
-                page_dir = os.path.dirname(dest_path)
-                basepath = os.path.relpath(dest_dir_path, page_dir)
-                if basepath == ".":
-                    basepath = ""
-                else:
-                    basepath = basepath.replace(os.sep, "/").rstrip("/") + "/"
                 generate_page(from_path, template_path, dest_path, basepath)
     

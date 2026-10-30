@@ -120,10 +120,10 @@ This is another paragraph with _italic_ text and `code` here
         title = extract_title(md)
         self.assertEqual(title, "My Title")
 
-    def test_generate_pages_recursive_preserves_content_paths(self):
+    def test_generate_pages_recursive_applies_basepath(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             content_dir = os.path.join(temp_dir, "content")
-            output_dir = os.path.join(temp_dir, "public")
+            output_dir = os.path.join(temp_dir, "docs")
             blog_dir = os.path.join(content_dir, "blog", "post")
             os.makedirs(blog_dir)
 
@@ -133,12 +133,17 @@ This is another paragraph with _italic_ text and `code` here
                 file.write("# Blog post\n\n[Back home](/)\n")
             template_path = os.path.join(temp_dir, "template.html")
             with open(template_path, "w") as file:
-                file.write(
-                    '<link href="{{ Basepath }}index.css">'
-                    "<title>{{ Title }}</title>{{ Content }}"
-                )
+                file.write('<link href="/index.css"><title>{{ Title }}</title>{{ Content }}')
 
             generate_pages_recursive(content_dir, template_path, output_dir)
+            with open(os.path.join(output_dir, "index.html")) as file:
+                default_home_html = file.read()
+            self.assertIn('href="/blog/post"', default_home_html)
+            self.assertIn('src="/images/example.png"', default_home_html)
+            self.assertIn('href="/index.css"', default_home_html)
+
+            basepath = "/static-site-generator/"
+            generate_pages_recursive(content_dir, template_path, output_dir, basepath)
 
             self.assertTrue(os.path.isfile(os.path.join(output_dir, "index.html")))
             self.assertTrue(
@@ -148,10 +153,10 @@ This is another paragraph with _italic_ text and `code` here
                 home_html = file.read()
             with open(os.path.join(output_dir, "blog", "post", "index.html")) as file:
                 post_html = file.read()
-            self.assertIn('href="blog/post/index.html"', home_html)
-            self.assertIn('src="images/example.png"', home_html)
-            self.assertIn('href="../../index.html"', post_html)
-            self.assertIn('href="../../index.css"', post_html)
+            self.assertIn('href="/static-site-generator/blog/post"', home_html)
+            self.assertIn('src="/static-site-generator/images/example.png"', home_html)
+            self.assertIn('href="/static-site-generator/"', post_html)
+            self.assertIn('href="/static-site-generator/index.css"', post_html)
             self.assertFalse(
                 os.path.exists(os.path.join(output_dir, "index.html", "blog"))
             )
